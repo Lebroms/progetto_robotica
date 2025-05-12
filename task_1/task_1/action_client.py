@@ -9,9 +9,9 @@ class MoveHeadClientNode(Node):
         super().__init__("move_head_client")
         self.count_until_client_ = ActionClient(self, MoveHead, "move_head")
     
-    # Wait for action server, send a goal, and register a callback for the response
-    # Also register another callback for the optional feedback
-    def send_goal(self, left_limit, right_limit,  step_angle):
+    # Attende il server dell'action, invia un goal e registra una callback per la risposta
+    # Registra anche una callback opzionale per il feedback
+    def send_goal(self, left_limit, right_limit, step_angle):
         self.count_until_client_.wait_for_server()
         goal = MoveHead.Goal()
         goal.left_limit = left_limit
@@ -21,42 +21,42 @@ class MoveHeadClientNode(Node):
             goal, feedback_callback=self.goal_feedback_callback). \
             add_done_callback(self.goal_response_callback)
 
-    # Method to send a cancel request for the current goal
+    # Invia una richiesta di cancellazione del goal
     def cancel_goal(self):
-        self.get_logger().info("Send a cancel goal request")
+        self.get_logger().info("Invio richiesta di cancellazione del goal")
         self.goal_handle_.cancel_goal_async()
 
-    # Get the goal response and if accepted, register a callback for the result
+    # Riceve la risposta al goal e, se accettato, registra una callback per il risultato
     def goal_response_callback(self, future):
         self.goal_handle_ = future.result()
         if self.goal_handle_.accepted:
-            self.get_logger().info("Goal got accepted")
+            self.get_logger().info("Goal accettato")
             self.goal_handle_.get_result_async().add_done_callback(self.goal_result_callback)
         else:
-            self.get_logger().info("Goal got rejected")
+            self.get_logger().info("Goal rifiutato")
 
-    # Get the goal result and print it
+    # Riceve il risultato del goal e stampa lo stato
     def goal_result_callback(self, future):
         status = future.result().status
         result = future.result().result
         if status == GoalStatus.STATUS_SUCCEEDED:
-            self.get_logger().info("Success")
+            self.get_logger().info("Completato con successo")
         elif status == GoalStatus.STATUS_ABORTED:
-            self.get_logger().error("Aborted")
+            self.get_logger().error("Annullato dal server")
         elif status == GoalStatus.STATUS_CANCELED:
-            self.get_logger().warn("Canceled")
-        self.get_logger().info("Result: " + str(result.success))
+            self.get_logger().warn("Cancellato dal client")
+        self.get_logger().info("Risultato: " + str(result.success))
 
-    # Get the goal feedback and print it
+    # Stampa il feedback ricevuto durante l'esecuzione del goal
     def goal_feedback_callback(self, feedback_msg):
         number = feedback_msg.feedback.current_angle
-        self.get_logger().info("Got feedback: " + str(number))
+        self.get_logger().info("Feedback ricevuto: " + str(number))
 
 
 def main(args=None):
     rclpy.init(args=args)
     node = MoveHeadClientNode()
-    node.send_goal(-0.217, 0.217, 0.01)
+    node.send_goal(-0.217, 0.227, 0.01)
     rclpy.spin(node)
     rclpy.shutdown()
 

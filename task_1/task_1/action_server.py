@@ -9,6 +9,7 @@ from personal_interfaces.action import MoveHead
 class MoveHeadServerNode(Node):
     def __init__(self):
         super().__init__("move_head_server")
+        # Creazione del server di azione
         self.move_camera_server_ = ActionServer(
             self,
             MoveHead,
@@ -17,27 +18,25 @@ class MoveHeadServerNode(Node):
             cancel_callback=self.cancel_callback,
             execute_callback=self.execute_callback)
         
-        self.get_logger().info("Action server has been started.")
-        self.joint_pub = self.create_publisher(JointTrajectory, '/head_controller/joint_trajectory', 10) # creazione del publisher con parametri di riferimento
+        self.get_logger().info("Il server dell'action è stato avviato.")
+        # Creazione del publisher per comandare la testa
+        self.joint_pub = self.create_publisher(JointTrajectory, '/head_controller/joint_trajectory', 10)
 
-    # Every new received goal will be processed here first
-    # We can decide to accept or reject the incoming goal
+    # Funzione per accettare o rifiutare il goal sulla base dei valori di ingresso dal client
     def goal_callback(self, goal_request: MoveHead.Goal):
-        self.get_logger().info("Received a goal")
+        self.get_logger().info("Ricevuto un goal")
         if goal_request.left_limit < -0.217 or goal_request.right_limit > 0.217:
-            self.get_logger().warn("Rejecting the goal, target must be in limits")
+            self.get_logger().warn("Rifiutato: limiti fuori range")
             return GoalResponse.REJECT
-        self.get_logger().info("Accepting the goal")
+        self.get_logger().info("Goal accettato")
         return GoalResponse.ACCEPT
     
-    # Any cancel request will be processed here, we can accept or reject it
+    # Funzione per gestire la richiesta di cancellazione del goal
     def cancel_callback(self, goal_handle: ServerGoalHandle):
-        self.get_logger().info("Received a cancel request")
+        self.get_logger().info("Ricevuta una richiesta di cancellazione")
         return CancelResponse.ACCEPT
 
-    # If a goal has been accepted, it will then be executed in this callback
-    # After we are done with the goal execution we set a final state and return the result
-    # When executing the goal we also check if we need to cancel it
+    # Funzione principale che esegue il goal richiesto
     def execute_callback(self, goal_handle: ServerGoalHandle):
         
         left = goal_handle.request.left_limit
@@ -46,7 +45,8 @@ class MoveHeadServerNode(Node):
 
         feedback_msg = MoveHead.Feedback()
 
-        angle=left
+        angle = left
+        # Ciclo per far muovere la testa da sinistra a destra
         while angle <= right:
             traj = JointTrajectory()
             traj.joint_names = ['head_1_joint', 'head_2_joint']
@@ -56,19 +56,19 @@ class MoveHeadServerNode(Node):
             traj.points.append(point)
             self.joint_pub.publish(traj)
 
-            # Feedback
+            # Pubblicazione del feedback corrente
             feedback_msg.current_angle = angle
             goal_handle.publish_feedback(feedback_msg)
             self.get_logger().info(f'Muovo a: {angle:.3f} rad')
 
-            # Controllo se il goal è stato cancellato
+            # Controlla se il goal è stato cancellato
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()
                 self.get_logger().warn('Goal cancellato!')
                 return MoveHead.Result(success=False)
 
             angle += step
-            time.sleep(1.0)  # tempo tra un movimento e l'altro
+            time.sleep(1.0)  # attesa tra un movimento e l'altro
 
         # Torna alla posizione iniziale (left_limit)
         traj = JointTrajectory()
@@ -82,7 +82,7 @@ class MoveHeadServerNode(Node):
         self.get_logger().info(f'Ritorno alla posizione iniziale: {left:.3f} rad')
         time.sleep(2.0)  # attesa per completare il movimento
 
-        # Fine movimento
+        # Segnala il completamento del goal
         goal_handle.succeed()
         result = MoveHead.Result()
         result.success = True
